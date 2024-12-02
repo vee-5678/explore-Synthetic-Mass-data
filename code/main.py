@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from pathlib import Path
 import os
 import configparser
@@ -12,9 +13,14 @@ config.read(Path(Path(os.getcwd()), 'config', 'config.ini'))
 display_options_config = config['display_options']
 file_path_config = config['file_paths']
 
-# display options
+# Display options
 pd.set_option('display.width', display_options_config.getint('desired_width'))
 pd.set_option('display.max_columns', display_options_config.getint('max_columns'))
+
+########################################################################################################################
+# Functions
+########################################################################################################################
+def derive_age_group(age):
 
 
 ########################################################################################################################
@@ -68,6 +74,9 @@ medications = raw_data.get('medications').copy(deep=True)
 procedures = raw_data.get('procedures').copy(deep=True)
 organizations = raw_data.get('organizations').copy(deep=True)
 
+########################################################################################################################
+# Tidy
+########################################################################################################################
 # Invalid data where something's gone wrong with field separation -  needs to be fixed at source
 # Dropping rows with issues - preferentially using fields that are required (according to data dict) and with a pattern to help filter
 patients = patients.loc[(pd.notnull(patients['ssn'])) & (patients['ssn'].str.startswith('999'))]
@@ -81,9 +90,34 @@ encounters = encounters.loc[encounters['patient'].isin(patients_to_include)].dro
 medications = medications.loc[medications['patient'].isin(patients_to_include)].drop_duplicates()
 procedures = procedures.loc[procedures['patient'].isin(patients_to_include)].drop_duplicates()
 
+# Parse date fields
+patients[['birthdate', 'deathdate']] = patients[['birthdate', 'deathdate']].apply(pd.to_datetime, errors='raise', format='%Y-%m-%d')
+conditions[['start', 'stop']] = conditions[['start', 'stop']].apply(pd.to_datetime, errors='raise', format='%Y-%m-%d')
+encounters['date'] = pd.to_datetime(encounters['date'], errors='raise', format='%Y-%m-%d')
+medications[['start', 'stop']] = medications[['start', 'stop']].apply(pd.to_datetime, errors='raise', format='%Y-%m-%d')
+procedures['date'] = pd.to_datetime(procedures['date'], errors='raise', format='%Y-%m-%d')
 
 
+########################################################################################################################
+# Transform
+########################################################################################################################
+# Create useful variables
+# Patient age, and age groups - set as date types first
+patients['age'] = round((patients['deathdate'] - patients['birthdate']) / np.timedelta64(1, 'Y'), 2)
+patients['age_group'] = pd.cut(patients['age'],
+                               # Could use pd.interval_range though gives misleading labels which have overlapping values
+                               bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, float('inf')],
+                               labels = ['<10', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-99', '100+'],
+                               right = False)
 
+# Assumption that if no deathdate, then patient is still alive
+patients['vital_status'] = patients.apply(lambda x: 'Alive' if pd.isnull(x['deathdate']) else 'Dead', axis=1)
+
+# Length of medication prescription
+medications['medication_duration'] = round((medications['stop'] - medications['start']) / np.timedelta64(1, 'D'), 2)
+
+# Length of condition
+conditions['condition_duration'] = round((conditions['stop'] - conditions['start']) / np.timedelta64(1, 'D'), 2)
 
 
 
