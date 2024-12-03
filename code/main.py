@@ -20,7 +20,7 @@ pd.set_option('display.max_columns', display_options_config.getint('max_columns'
 ########################################################################################################################
 # Functions
 ########################################################################################################################
-def derive_age_group(age):
+
 
 
 ########################################################################################################################
@@ -99,9 +99,8 @@ procedures['date'] = pd.to_datetime(procedures['date'], errors='raise', format='
 
 
 ########################################################################################################################
-# Transform
+# Transform - add useful variables
 ########################################################################################################################
-# Create useful variables
 # Patient age, and age groups - set as date types first
 patients['age'] = round((patients['deathdate'] - patients['birthdate']) / np.timedelta64(1, 'Y'), 2)
 patients['age_group'] = pd.cut(patients['age'],
@@ -118,6 +117,39 @@ medications['medication_duration'] = round((medications['stop'] - medications['s
 
 # Length of condition
 conditions['condition_duration'] = round((conditions['stop'] - conditions['start']) / np.timedelta64(1, 'D'), 2)
+
+# Aggregated variables - by patient
+# TODO: make this into a func - take in variable to count and variable to groupby
+conditions_count_per_pt = conditions.groupby('patient')['code'].count().reset_index().rename(columns={'code': 'count_conditions'})
+encounters_count_per_pt = encounters.groupby('patient')['id'].count().reset_index().rename(columns={'id': 'count_encounters'})
+medications_count_per_pt = medications.groupby('patient')['code'].count().reset_index().rename(columns={'code': 'count_medications'})
+procedures_count_per_pt = procedures.groupby('patient')['code'].count().reset_index().rename(columns={'code': 'count_procedures'})
+
+# Join with patients DF
+patients = patients.merge(
+    right=conditions_count_per_pt,
+    how='left',
+    left_on='id',
+    right_on='patient',
+).merge(
+    right=encounters_count_per_pt,
+    how='left',
+    left_on='id',
+    right_on='patient'
+).merge(
+    right=medications_count_per_pt,
+    how='left',
+    left_on='id',
+    right_on='patient'
+).merge(
+    right=procedures_count_per_pt,
+    how='left',
+    left_on='id',
+    right_on='patient'
+)
+# Drop join keys from merging that are redundant and not required
+patients = patients.drop(columns=['patient_x', 'patient_y'])
+
 
 
 
