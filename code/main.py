@@ -134,6 +134,10 @@ patients['age_group'] = pd.cut(patients['age'],
                                bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, float('inf')],
                                labels = ['<10', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-99', '100+'],
                                right = False)
+# To ensure it gets sorted correctly
+patients['age_group'] = pd.Categorical(patients['age_group'], 
+                                       categories=['<10', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-99', '100+'],
+                                       ordered=True)
 
 # Assumption that if no deathdate, then patient is still alive
 patients['vital_status'] = patients.apply(lambda x: 'Alive' if pd.isnull(x['deathdate']) else 'Dead', axis=1)
@@ -180,5 +184,5 @@ patients = patients.drop(columns=['patient_x', 'patient_y'])
 del raw_data, conditions_count_per_pt, encounters_count_per_pt, medications_count_per_pt, procedures_count_per_pt
 
 
-
+medications.loc[medications['medication_duration']<0]
 
