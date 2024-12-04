@@ -7,7 +7,7 @@ The dataset was [SyntheticMass data](https://synthea.mitre.org/downloads) as gen
 ## Code
 There are 3 key code elements:
 - A Python script for importing, cleaning, tidying, and transforming of the data. This cleaned dataset forms the foundation for the other scripts.
-- A Jupyter notebook for initial exploration of the data in simple charts and a basic statistical analysis of numerical measures.
+- A Jupyter notebook for initial exploration of the data in the form of simple charts and basic statistical analysis of numerical variables.
 - A Jupyter notebook using PyGWalker to provide interactive visualisations to aid further exploration of the data. Some insights and saved charts are provided.
 
 ## Installation
