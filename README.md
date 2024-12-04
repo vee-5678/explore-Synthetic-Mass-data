@@ -21,7 +21,9 @@ There are 3 key code elements:
    ```bash
    git clone https://github.com/vee-5678/explore-Synthetic-Mass-data.git
 
-2. Either run main.py for dataset cleaning, OR open Jupyter notebook of interest and run the cells / notebook. PyGWalker visualisations are interactive, and can be saved.
+2. Source the data from [SyntheticMass](https://synthea.mitre.org/downloads), unzip the dataset, and update the _input_data_fp_ variable in main.py to point to the directory of unzipped data.
+
+3. Either run main.py for dataset cleaning, OR open Jupyter notebook of interest and run the cells / notebook. PyGWalker visualisations are interactive, and can be saved.
 
 
 
