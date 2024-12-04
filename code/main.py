@@ -41,16 +41,14 @@ data_of_interest = ['patients',
                     'conditions',
                     'encounters',
                     'medications',
-                    'procedures',
-                    'organizations']
+                    'procedures']
 
 
 raw_data = {'patients': pd.DataFrame(),
             'conditions': pd.DataFrame(),
             'encounters': pd.DataFrame(),
             'medications': pd.DataFrame(),
-            'procedures': pd.DataFrame(),
-            'organizations': pd.DataFrame()}
+            'procedures': pd.DataFrame()}
 
 for file in raw_data_file_list:
     # CSVs named the same, just different folders, so get the stem of the file which will indicate which DF to concat to
@@ -79,7 +77,6 @@ conditions = raw_data.get('conditions').copy(deep=True)
 encounters = raw_data.get('encounters').copy(deep=True)
 medications = raw_data.get('medications').copy(deep=True)
 procedures = raw_data.get('procedures').copy(deep=True)
-organizations = raw_data.get('organizations').copy(deep=True)
 
 ########################################################################################################################
 # Tidy
@@ -148,7 +145,6 @@ medications['medication_duration'] = round((medications['stop'] - medications['s
 conditions['condition_duration'] = round((conditions['stop'] - conditions['start']) / np.timedelta64(1, 'D'), 2)
 
 # Aggregated variables - by patient
-# TODO: make this into a func - take in variable to count and variable to groupby
 conditions_count_per_pt = conditions.groupby('patient')['code'].count().reset_index().rename(columns={'code': 'count_conditions'})
 encounters_count_per_pt = encounters.groupby('patient')['id'].count().reset_index().rename(columns={'id': 'count_encounters'})
 medications_count_per_pt = medications.groupby('patient')['code'].count().reset_index().rename(columns={'code': 'count_medications'})
