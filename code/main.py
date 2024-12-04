@@ -16,8 +16,18 @@ pd.set_option('display.max_columns', 10)
 # Variables
 ########################################################################################################################
 input_data_fp = Path('C:/', 'data', 'synthea_1m_fhir_3_0_May_24')
+
 # Based on files modified, data extracted in 2017 (31/12 for simplicity); used to calculate age for pts with no deathdate
 assumed_date_of_extract = '2017-12-31'
+
+# Key datasets of interest to bring in
+data_of_interest = [
+    'patients',
+    'conditions',
+    'encounters',
+    'medications',
+    'procedures'
+]
 
 ########################################################################################################################
 # Functions
@@ -28,31 +38,29 @@ def derive_age(birthdate, deathdate):
     age = ((end_date_to_use - birthdate) / np.timedelta64(1, 'Y'))
     # Round to 2 d.p.
     age = round(age, 2)
-    
     return age
 
 
 ########################################################################################################################
 # Import data
 ########################################################################################################################
+# Create dict to bring in the relevant data and concatenate to each relevant DF
+raw_data = {
+    'patients': pd.DataFrame(),
+    'conditions': pd.DataFrame(),
+    'encounters': pd.DataFrame(),
+    'medications': pd.DataFrame(),
+    'procedures': pd.DataFrame()
+}
+
+# Get list of files in the input data filepath
 raw_data_file_list = [f for f in input_data_fp.glob('**/*') if f.is_file()]
 
-data_of_interest = ['patients',
-                    'conditions',
-                    'encounters',
-                    'medications',
-                    'procedures']
-
-
-raw_data = {'patients': pd.DataFrame(),
-            'conditions': pd.DataFrame(),
-            'encounters': pd.DataFrame(),
-            'medications': pd.DataFrame(),
-            'procedures': pd.DataFrame()}
-
+# Iterate through each file in the list, and attempt to read in the data and concatenate to relevant DF of raw_data
 for file in raw_data_file_list:
     # CSVs named the same, just different folders, so get the stem of the file which will indicate which DF to concat to
     data_category = file.stem
+    # Only bring in data we're interested in
     if data_category not in data_of_interest:
         pass
     else:
@@ -62,25 +70,27 @@ for file in raw_data_file_list:
             df['source_folder'] = file.parent.name
             # Add to the appropriate DF based on the name of the file
             raw_data[data_category] = df.copy() if raw_data[data_category].empty else pd.concat([raw_data[data_category], df])
+        # Issues with some files and their delimiter - unable to resolve programatically
         except pd.errors.ParserError as e:
             print(f'{file.parent.name}/{file.name} unable to be parsed:', e)
             pass
 
 
+########################################################################################################################
+# Tidy
+########################################################################################################################
 # Standardise column names across all datasets - lowercase
 for df in raw_data.values():
     df.columns = [col.lower() for col in df.columns]
 
-# Get data out as basic DF once repeated, generic steps are complete
+# Get data out as basic DF once the repeated and generic steps are complete
 patients = raw_data.get('patients').copy(deep=True)
 conditions = raw_data.get('conditions').copy(deep=True)
 encounters = raw_data.get('encounters').copy(deep=True)
 medications = raw_data.get('medications').copy(deep=True)
 procedures = raw_data.get('procedures').copy(deep=True)
 
-########################################################################################################################
-# Tidy
-########################################################################################################################
+
 # Invalid data where something's gone wrong with field separation -  needs to be fixed at source
 # Dropping rows with issues - preferentially using fields that are required (according to data dict) and with a pattern to help filter
 patients = patients.loc[(pd.notnull(patients['ssn'])) & (patients['ssn'].str.startswith('999'))]
@@ -103,7 +113,7 @@ medications[['start', 'stop']] = medications[['start', 'stop']].apply(pd.to_date
 procedures['date'] = pd.to_datetime(procedures['date'], errors='raise', format='%Y-%m-%d')
 
 # Add year variables for looking at trends over time
-# Where there is a start and stop date, just use start date for simplicty
+# Where there is a start and stop date, just use start date for simplicity
 conditions['year'] = conditions['start'].dt.year
 encounters['year'] = encounters['date'].dt.year
 medications['year'] = medications['start'].dt.year
@@ -113,8 +123,7 @@ procedures['year'] = procedures['date'].dt.year
 # Not very useful for analysis though, so dropping it
 procedures = procedures.loc[procedures['description'].str.lower() != 'documentation of current medications']
 
-
-# Check for any duplicates in patient 
+# Check for any duplicates in the patient dataset, and throw a warning if there are any
 duplicate_pt_ids = patients.loc[patients.duplicated(subset='id')]
 if len(duplicate_pt_ids.index) > 0:
     warnings.warn('Duplicate IDs in patients DF')
@@ -129,11 +138,17 @@ if len(duplicate_pt_other_fields.index) > 0:
 ########################################################################################################################
 # Patient age, and age groups - set as date types first
 patients['age'] = patients.apply(lambda x: derive_age(x['birthdate'], x['deathdate']), axis=1)
-patients['age_group'] = pd.cut(patients['age'],
-                               # Could use pd.interval_range though gives misleading labels which have overlapping values
-                               bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, float('inf')],
-                               labels = ['<10', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-99', '100+'],
-                               right = False)
+patients['age_group'] = pd.cut(
+    patients['age'],
+    # Could use pd.interval_range though gives misleading labels which have overlapping values
+    bins=[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, float('inf')],
+    labels=['<10', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-99', '100+'],
+    right=False
+)
+# Create an ordered categorical for age_group to ensure it gets sorted correctly
+patients['age_group'] = pd.Categorical(patients['age_group'], 
+                                       categories=['<10', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-99', '100+'],
+                                       ordered=True)
 
 # Assumption that if no deathdate, then patient is still alive
 patients['vital_status'] = patients.apply(lambda x: 'Alive' if pd.isnull(x['deathdate']) else 'Dead', axis=1)
@@ -175,10 +190,7 @@ patients = patients.merge(
 # Drop join keys from merging that are redundant and not required
 patients = patients.drop(columns=['patient_x', 'patient_y'])
 
-
 # Drop variables no longer required
 del raw_data, conditions_count_per_pt, encounters_count_per_pt, medications_count_per_pt, procedures_count_per_pt
-
-
 
 
