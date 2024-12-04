@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import os
-import configparser
+import warnings
 
 ########################################################################################################################
 # Setup
@@ -15,7 +15,7 @@ pd.set_option('display.max_columns', 10)
 ########################################################################################################################
 # Variables
 ########################################################################################################################
-input_data_fp = Path('C:/', 'Users', '60226589', 'OneDrive - NSW Health Department', 'synthea_1m_fhir_3_0_May_24')
+input_data_fp = Path('C:/', 'data', 'synthea_1m_fhir_3_0_May_24')
 # Based on files modified, data extracted in 2017 (31/12 for simplicity); used to calculate age for pts with no deathdate
 assumed_date_of_extract = '2017-12-31'
 
@@ -117,6 +117,15 @@ procedures['year'] = procedures['date'].dt.year
 procedures = procedures.loc[procedures['description'].str.lower() != 'documentation of current medications']
 
 
+# Check for any duplicates in patient 
+duplicate_pt_ids = patients.loc[patients.duplicated(subset='id')]
+if len(duplicate_pt_ids.index) > 0:
+    warnings.warn('Duplicate IDs in patients DF')
+
+duplicate_pt_other_fields = patients.loc[patients.duplicated(subset=['birthdate', 'first', 'last', 'ssn'])]
+if len(duplicate_pt_other_fields.index) > 0:
+    warnings.warn('Potentialy duplicates in patients DF')
+
 
 ########################################################################################################################
 # Transform - add useful variables
@@ -173,3 +182,7 @@ patients = patients.drop(columns=['patient_x', 'patient_y'])
 
 # Drop variables no longer required
 del raw_data, conditions_count_per_pt, encounters_count_per_pt, medications_count_per_pt, procedures_count_per_pt
+
+
+
+
